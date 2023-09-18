@@ -1,51 +1,50 @@
 use ndarray::{Array, CowArray};
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 
 use ort::{
-    Environment, ExecutionProvider, GraphOptimizationLevel, OrtResult, Session, SessionBuilder,
-    Value, tensor::OrtOwnedTensor,
+    tensor::OrtOwnedTensor, Environment, ExecutionProvider, GraphOptimizationLevel, OrtResult,
+    Session, SessionBuilder, Value,
 };
 
+#[derive(Debug, PartialEq)]
 pub enum VadResult {
-    Silence(f32),
-    Speaking(f32),
-    Start(f32),
-    End(f32),
+    Silence,
+    Speaking,
+    Start,
+    End,
 }
 
 /// A struct representing a Voice Activity Detection (VAD) iterator.
 pub struct VadIterator {
     // OnnxRuntime resources
-    environment: Arc<Environment>, // Arc reference to the OnnxRuntime environment
     session: Session, // OnnxRuntime session
 
     // Model config
     window_size_samples: i64, // The size of the window in samples
-    sample_rate: i32, // The sample rate of the audio
-    sr_per_ms: i32, // The number of samples per millisecond
-    threshold: f32, // The threshold for speech detection
+    sample_rate: i32,         // The sample rate of the audio
+    threshold: f32,           // The threshold for speech detection
     min_silence_samples: u32, // The minimum number of samples for silence
     speech_pad_samples: i32,  // The number of samples to pad speech with
 
     // Model states
-    triggerd: bool, // Whether speech has been detected
-    speech_start: u32, // The sample index of the start of speech
-    speech_end: u32, // The sample index of the end of speech
-    temp_end: u32, // The temporary sample index of the end of speech
+    triggerd: bool,      // Whether speech has been detected
+    speech_start: u32,   // The sample index of the start of speech
+    speech_end: u32,     // The sample index of the end of speech
+    temp_end: u32,       // The temporary sample index of the end of speech
     current_sample: u32, // The current sample index
-    output: f32, // The output probability of speech
+    speech_probability: f32,         // The probability of speech
 
     // Inputs
     input: Vec<f32>, // The input audio data
-    sr: Vec<i64>, // The sample rate of the audio as a vector
-    _h: Vec<f32>, // The hidden state of the model
-    _c: Vec<f32>, // The cell state of the model
+    sr: Vec<i64>,    // The sample rate of the audio as a vector
+    _h: Vec<f32>,    // The hidden state of the model
+    _c: Vec<f32>,    // The cell state of the model
 
     // Outputs
     ort_outputs: Vec<Value<'static>>, // The outputs of the OnnxRuntime session
 
     // Result
-    result: Option<VadResult>, // The result of the VAD
+    pub result: Option<VadResult>, // The result of the VAD
 }
 
 impl VadIterator {
@@ -56,6 +55,8 @@ impl VadIterator {
         self.triggerd = false;
         self.temp_end = 0;
         self.current_sample = 0;
+        self.speech_probability = 0.0;
+        self.result = None;
     }
     pub fn predict(&mut self, data: &[f32]) {
         // Infer
@@ -101,7 +102,7 @@ impl VadIterator {
 
         // Output probability & update h,c recursively
         let output: OrtOwnedTensor<f32, _> = self.ort_outputs[0].try_extract().unwrap();
-        output.view().iter().for_each(|&x| self.output = x);
+        output.view().iter().for_each(|&x| self.speech_probability = x);
 
         let hn = self.ort_outputs[1].try_extract().unwrap();
         self._h.clone_from_slice(hn.view().as_slice().unwrap());
@@ -112,28 +113,28 @@ impl VadIterator {
         self.current_sample += self.window_size_samples as u32;
 
         // Reset temp_end when > threshold
-        if self.output >= self.threshold && self.temp_end != 0 {
+        if self.speech_probability >= self.threshold && self.temp_end != 0 {
             self.temp_end = 0;
         }
-        
+
         // 1) Silence
-        if self.output < self.threshold && !self.triggerd {
+        if self.speech_probability < self.threshold && !self.triggerd {
             println!(
                 "{{ silence: {:.3} s }}",
                 1.0 * self.current_sample as f32 / self.sample_rate as f32
             );
-            self.result = Some(VadResult::Silence(self.output));
+            self.result = Some(VadResult::Silence);
         }
         // 2) Speaking
-        if self.output >= self.threshold - 0.15 && self.triggerd {
+        if self.speech_probability >= self.threshold - 0.15 && self.triggerd {
             println!(
                 "{{ speaking_2: {:.3} s }}",
                 1.0 * self.current_sample as f32 / self.sample_rate as f32
             );
-            self.result = Some(VadResult::Speaking(self.output));
+            self.result = Some(VadResult::Speaking);
         }
         // 3) Start
-        if self.output >= self.threshold && !self.triggerd {
+        if self.speech_probability >= self.threshold && !self.triggerd {
             self.triggerd = true;
             self.speech_start = self.current_sample
                 - self.window_size_samples as u32
@@ -142,17 +143,20 @@ impl VadIterator {
                 "{{ start: {:.3} s }}",
                 1.0 * self.speech_start as f32 / self.sample_rate as f32
             );
-            self.result = Some(VadResult::Start(self.output));
+            self.result = Some(VadResult::Start);
         }
         // 4) End
-        if self.output < self.threshold - 0.15 && self.triggerd {
+        if self.speech_probability < self.threshold - 0.15 && self.triggerd {
             if self.temp_end == 0 {
                 self.temp_end = self.current_sample;
             }
             // a. silence < min_slience_samples, continue speaking
             if self.current_sample - self.temp_end < self.min_silence_samples {
-                println!("{{ speaking_4: {:.3} s }}", 1.0 * self.current_sample as f32 / self.sample_rate as f32);
-                self.result = Some(VadResult::Speaking(self.output));
+                println!(
+                    "{{ speaking_4: {:.3} s }}",
+                    1.0 * self.current_sample as f32 / self.sample_rate as f32
+                );
+                self.result = Some(VadResult::Speaking);
             }
             // b. silence >= min_slience_samples, end speaking
             else {
@@ -167,7 +171,7 @@ impl VadIterator {
                     "{{ end: {:.3} s }}",
                     1.0 * self.speech_end as f32 / self.sample_rate as f32
                 );
-                self.result = Some(VadResult::End(self.output));
+                self.result = Some(VadResult::End);
             }
         }
     }
@@ -204,11 +208,9 @@ impl VadIterator {
         let _c = vec![0.0; 2 * 1 * 64];
 
         Ok(Self {
-            environment,
             session,
             window_size_samples,
             sample_rate,
-            sr_per_ms,
             threshold,
             min_silence_samples,
             speech_pad_samples,
@@ -217,7 +219,7 @@ impl VadIterator {
             speech_end: 0,
             temp_end: 0,
             current_sample: 0,
-            output: 0.0,
+            speech_probability: 0.0,
             input,
             sr,
             _h,

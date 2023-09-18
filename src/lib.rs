@@ -2,7 +2,7 @@ mod model;
 
 #[cfg(test)]
 mod tests {
-    use crate::model::VadIterator;
+    use crate::model::{VadIterator, VadResult};
     use std::path::Path;
     #[test]
     fn it_works() {
@@ -26,5 +26,9 @@ mod tests {
         .unwrap();
         let data = vec![0.1; test_window_samples as usize];
         vad.predict(&data);
+        assert_eq!(vad.result, Some(VadResult::Silence));
+        vad.reset_states();
+        assert_eq!(vad.result, None);
+        
     }
 }
