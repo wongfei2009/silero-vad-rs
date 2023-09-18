@@ -1,4 +1,4 @@
-mod model;
+pub mod model;
 
 #[cfg(test)]
 mod tests {
