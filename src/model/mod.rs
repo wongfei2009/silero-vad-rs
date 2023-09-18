@@ -3,7 +3,7 @@ use std::{path::Path, sync::Arc};
 
 use ort::{
     Environment, ExecutionProvider, GraphOptimizationLevel, OrtResult, Session, SessionBuilder,
-    Value,
+    Value, tensor::OrtOwnedTensor,
 };
 
 pub struct VadIterator {
@@ -87,39 +87,52 @@ impl VadIterator {
 
         // Infer
         self.ort_outputs = self.session.run(ort_inputs).unwrap();
-        /*
+
         // Output probability & update h,c recursively
-        let output = self.ort_outputs[0].as_tensor::<f32>().unwrap()[0];
-        let hn = self.ort_outputs[1].as_tensor::<f32>().unwrap();
-        self._h.clone_from_slice(hn);
-        let cn = self.ort_outputs[2].as_tensor::<f32>().unwrap();
-        self._c.clone_from_slice(cn);
+        let output: OrtOwnedTensor<f32, _> = self.ort_outputs[0].try_extract().unwrap();
+        output.view().iter().for_each(|&x| self.output = x);
+
+        let hn = self.ort_outputs[1].try_extract().unwrap();
+        self._h.clone_from_slice(hn.view().as_slice().unwrap());
+        let cn = self.ort_outputs[2].try_extract().unwrap();
+        self._c.clone_from_slice(cn.view().as_slice().unwrap());
 
         // Push forward sample index
         self.current_sample += self.window_size_samples as u32;
 
         // Reset temp_end when > threshold
-        if output >= self.threshold && self.temp_end != 0 {
+        if self.output >= self.threshold && self.temp_end != 0 {
             self.temp_end = 0;
         }
         // 1) Silence
-        if output < self.threshold && !self.triggerd {
-            // println!("{{ silence: {:.3} s }}", 1.0 * self.current_sample as f32 / self.sample_rate as f32);
+        if self.output < self.threshold && !self.triggerd {
+            println!(
+                "{{ silence: {:.3} s }}",
+                1.0 * self.current_sample as f32 / self.sample_rate as f32
+            );
         }
         // 2) Speaking
-        if output >= self.threshold - 0.15 && self.triggerd {
-            // println!("{{ speaking_2: {:.3} s }}", 1.0 * self.current_sample as f32 / self.sample_rate as f32);
+        if self.output >= self.threshold - 0.15 && self.triggerd {
+            println!(
+                "{{ speaking_2: {:.3} s }}",
+                1.0 * self.current_sample as f32 / self.sample_rate as f32
+            );
         }
 
         // 3) Start
-        if output >= self.threshold && !self.triggerd {
+        if self.output >= self.threshold && !self.triggerd {
             self.triggerd = true;
-            self.speech_start = self.current_sample - self.window_size_samples as u32 - self.speech_pad_samples as u32; // minus window_size_samples to get precise start time point.
-            println!("{{ start: {:.3} s }}", 1.0 * self.speech_start as f32 / self.sample_rate as f32);
+            self.speech_start = self.current_sample
+                - self.window_size_samples as u32
+                - self.speech_pad_samples as u32; // minus window_size_samples to get precise start time point.
+            println!(
+                "{{ start: {:.3} s }}",
+                1.0 * self.speech_start as f32 / self.sample_rate as f32
+            );
         }
 
         // 4) End
-        if output < self.threshold - 0.15 && self.triggerd {
+        if self.output < self.threshold - 0.15 && self.triggerd {
             if self.temp_end == 0 {
                 self.temp_end = self.current_sample;
             }
@@ -136,10 +149,12 @@ impl VadIterator {
                 };
                 self.temp_end = 0;
                 self.triggerd = false;
-                println!("{{ end: {:.3} s }}", 1.0 * self.speech_end as f32 / self.sample_rate as f32);
+                println!(
+                    "{{ end: {:.3} s }}",
+                    1.0 * self.speech_end as f32 / self.sample_rate as f32
+                );
             }
         }
-         */
     }
     // Construction
     pub fn new(
