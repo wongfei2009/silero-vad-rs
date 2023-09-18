@@ -21,7 +21,6 @@ pub struct VadIterator {
 
     // Model config
     window_size_samples: i64, // The size of the window in samples
-    sample_rate: i32,         // The sample rate of the audio
     threshold: f32,           // The threshold for speech detection
     min_silence_samples: u32, // The minimum number of samples for silence
     speech_pad_samples: i32,  // The number of samples to pad speech with
@@ -122,18 +121,10 @@ impl VadIterator {
 
         // 1) Silence
         if self.speech_probability < self.threshold && !self.triggerd {
-            println!(
-                "{{ silence: {:.3} s }}",
-                1.0 * self.current_sample as f32 / self.sample_rate as f32
-            );
             self.result = Some(VadResult::Silence);
         }
         // 2) Speaking
         if self.speech_probability >= self.threshold - 0.15 && self.triggerd {
-            println!(
-                "{{ speaking_2: {:.3} s }}",
-                1.0 * self.current_sample as f32 / self.sample_rate as f32
-            );
             self.result = Some(VadResult::Speaking);
         }
         // 3) Start
@@ -142,10 +133,6 @@ impl VadIterator {
             self.speech_start = self.current_sample
                 - self.window_size_samples as u32
                 - self.speech_pad_samples as u32; // minus window_size_samples to get precise start time point.
-            println!(
-                "{{ start: {:.3} s }}",
-                1.0 * self.speech_start as f32 / self.sample_rate as f32
-            );
             self.result = Some(VadResult::Start);
         }
         // 4) End
@@ -155,10 +142,6 @@ impl VadIterator {
             }
             // a. silence < min_slience_samples, continue speaking
             if self.current_sample - self.temp_end < self.min_silence_samples {
-                println!(
-                    "{{ speaking_4: {:.3} s }}",
-                    1.0 * self.current_sample as f32 / self.sample_rate as f32
-                );
                 self.result = Some(VadResult::Speaking);
             }
             // b. silence >= min_slience_samples, end speaking
@@ -170,10 +153,6 @@ impl VadIterator {
                 };
                 self.temp_end = 0;
                 self.triggerd = false;
-                println!(
-                    "{{ end: {:.3} s }}",
-                    1.0 * self.speech_end as f32 / self.sample_rate as f32
-                );
                 self.result = Some(VadResult::End);
             }
         }
@@ -212,7 +191,6 @@ impl VadIterator {
         Ok(Self {
             session,
             window_size_samples,
-            sample_rate,
             threshold,
             min_silence_samples,
             speech_pad_samples,
