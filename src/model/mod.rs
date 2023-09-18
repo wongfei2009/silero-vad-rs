@@ -182,7 +182,6 @@ impl VadIterator {
     pub fn new(
         model: &Path,
         sample_rate: i32,
-        frame_size: i64,
         threshold: f32,
         min_silence_duration_ms: i64,
         speech_pad_ms: i64,
@@ -203,7 +202,7 @@ impl VadIterator {
         let sr_per_ms = (sample_rate as i64 / 1000) as i32;
         let min_silence_samples = (sr_per_ms as i64 * min_silence_duration_ms) as u32;
         let speech_pad_samples = (sr_per_ms as i64 * speech_pad_ms) as i32;
-        let window_size_samples = frame_size * sr_per_ms as i64;
+        let window_size_samples = 256;
 
         let input = vec![0.0; window_size_samples as usize];
         let sr = vec![sample_rate as i64];
