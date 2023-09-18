@@ -122,6 +122,7 @@ impl VadIterator {
                 "{{ silence: {:.3} s }}",
                 1.0 * self.current_sample as f32 / self.sample_rate as f32
             );
+            self.result = Some(VadResult::Silence(self.output));
         }
         // 2) Speaking
         if self.output >= self.threshold - 0.15 && self.triggerd {
@@ -129,6 +130,7 @@ impl VadIterator {
                 "{{ speaking_2: {:.3} s }}",
                 1.0 * self.current_sample as f32 / self.sample_rate as f32
             );
+            self.result = Some(VadResult::Speaking(self.output));
         }
         // 3) Start
         if self.output >= self.threshold && !self.triggerd {
@@ -140,6 +142,7 @@ impl VadIterator {
                 "{{ start: {:.3} s }}",
                 1.0 * self.speech_start as f32 / self.sample_rate as f32
             );
+            self.result = Some(VadResult::Start(self.output));
         }
         // 4) End
         if self.output < self.threshold - 0.15 && self.triggerd {
@@ -149,6 +152,7 @@ impl VadIterator {
             // a. silence < min_slience_samples, continue speaking
             if self.current_sample - self.temp_end < self.min_silence_samples {
                 println!("{{ speaking_4: {:.3} s }}", 1.0 * self.current_sample as f32 / self.sample_rate as f32);
+                self.result = Some(VadResult::Speaking(self.output));
             }
             // b. silence >= min_slience_samples, end speaking
             else {
@@ -163,6 +167,7 @@ impl VadIterator {
                     "{{ end: {:.3} s }}",
                     1.0 * self.speech_end as f32 / self.sample_rate as f32
                 );
+                self.result = Some(VadResult::End(self.output));
             }
         }
     }
