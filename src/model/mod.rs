@@ -124,7 +124,7 @@ impl VadIterator {
             self.result = Some(VadResult::Silence);
         }
         // 2) Speaking
-        if self.speech_probability >= self.threshold - 0.15 && self.triggerd {
+        if self.speech_probability >= self.threshold - 0.1 && self.triggerd {
             self.result = Some(VadResult::Speaking);
         }
         // 3) Start
@@ -136,7 +136,7 @@ impl VadIterator {
             self.result = Some(VadResult::Start);
         }
         // 4) End
-        if self.speech_probability < self.threshold - 0.15 && self.triggerd {
+        if self.speech_probability < self.threshold - 0.1 && self.triggerd {
             if self.temp_end == 0 {
                 self.temp_end = self.current_sample;
             }
