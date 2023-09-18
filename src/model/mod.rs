@@ -22,6 +22,7 @@ pub struct VadIterator {
     // Model config
     window_size_samples: i64, // The size of the window in samples
     threshold: f32,           // The threshold for speech detection
+    threshold_margin: f32,    // The margin for the threshold
     min_silence_samples: u32, // The minimum number of samples for silence
     speech_pad_samples: i32,  // The number of samples to pad speech with
 
@@ -124,7 +125,7 @@ impl VadIterator {
             self.result = Some(VadResult::Silence);
         }
         // 2) Speaking
-        if self.speech_probability >= self.threshold - 0.01 && self.triggerd {
+        if self.speech_probability >= self.threshold - self.threshold_margin && self.triggerd {
             self.result = Some(VadResult::Speaking);
         }
         // 3) Start
@@ -136,7 +137,7 @@ impl VadIterator {
             self.result = Some(VadResult::Start);
         }
         // 4) End
-        if self.speech_probability < self.threshold - 0.01 && self.triggerd {
+        if self.speech_probability < self.threshold - self.threshold_margin && self.triggerd {
             if self.temp_end == 0 {
                 self.temp_end = self.current_sample;
             }
@@ -162,6 +163,7 @@ impl VadIterator {
         model: &Path,
         sample_rate: i32,
         threshold: f32,
+        threshold_margin: f32,
         min_silence_duration_ms: i64,
         speech_pad_ms: i64,
     ) -> OrtResult<Self> {
@@ -192,6 +194,7 @@ impl VadIterator {
             session,
             window_size_samples,
             threshold,
+            threshold_margin,
             min_silence_samples,
             speech_pad_samples,
             triggerd: false,

@@ -10,6 +10,7 @@ mod tests {
 
         let test_sr: i32 = 8000;
         let test_threshold = 0.5f32;
+        let test_threshold_margin = 0.05f32;
         let test_min_silence_duration_ms = 0;
         let test_speech_pad_ms = 0;
         let test_window_samples = 256;
@@ -18,6 +19,7 @@ mod tests {
             &path,
             test_sr,
             test_threshold,
+            test_threshold_margin,
             test_min_silence_duration_ms,
             test_speech_pad_ms
         )
