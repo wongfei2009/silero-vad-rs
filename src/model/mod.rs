@@ -27,12 +27,12 @@ pub struct VadIterator {
     speech_pad_samples: i32,  // The number of samples to pad speech with
 
     // Model states
-    triggerd: bool,      // Whether speech has been detected
-    speech_start: u32,   // The sample index of the start of speech
-    speech_end: u32,     // The sample index of the end of speech
-    temp_end: u32,       // The temporary sample index of the end of speech
-    current_sample: u32, // The current sample index
-    speech_probability: f32,         // The probability of speech
+    triggerd: bool,          // Whether speech has been detected
+    speech_start: u32,       // The sample index of the start of speech
+    speech_end: u32,         // The sample index of the end of speech
+    temp_end: u32,           // The temporary sample index of the end of speech
+    current_sample: u32,     // The current sample index
+    speech_probability: f32, // The probability of speech
 
     // Inputs
     input: Vec<f32>, // The input audio data
@@ -102,7 +102,10 @@ impl VadIterator {
 
         // Output probability & update h,c recursively
         let output: OrtOwnedTensor<f32, _> = self.ort_outputs[0].try_extract().unwrap();
-        output.view().iter().for_each(|&x| self.speech_probability = x);
+        output
+            .view()
+            .iter()
+            .for_each(|&x| self.speech_probability = x);
 
         let hn = self.ort_outputs[1].try_extract().unwrap();
         self._h.clone_from_slice(hn.view().as_slice().unwrap());

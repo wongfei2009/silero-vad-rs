@@ -29,6 +29,5 @@ mod tests {
         assert_eq!(vad.result, Some(VadResult::Silence));
         vad.reset_states();
         assert_eq!(vad.result, None);
-        
     }
 }
